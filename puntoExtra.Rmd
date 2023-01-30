@@ -1,0 +1,60 @@
+
+# Punto extra de Administración de riesgos
+
+```{r}
+# cargamos librerías necesarias
+library(PerformanceAnalytics)
+library(zoo)
+
+#Cargamos el archivo
+
+
+data <- read.csv("file.csv")
+
+data<- data[,1:2]
+data <- data[!( is.na(data$Mexbol_index)),]
+
+summary(data)
+```
+
+
+
+
+## Creamos las columnas para el cálculo de VaR
+
+```{r}
+#agregamos columnas de rendimiento
+
+data$rend <- c(NA, diff(data$Mexbol_index) / data$Mexbol_index[-length(data$Mexbol_index)])
+
+# Eliminamos las filas de dias feriados
+data <- data[!(data$rend == 0 | is.na(data$rend)),]
+
+
+#agregamos la columna de VaR histórico
+window_size <- 252
+VaR_historical <- rollapply(data=data$rend,width= window_size, FUN=VaR, p = 0.95, method = "historical", align = "right")
+data$varHist <- c(rep(NA, window_size - 1), -VaR_historical)
+
+#agregamos columna de VaR ponderado histórico
+ponde <- vector()
+
+for (i in ){
+
+    
+}
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
