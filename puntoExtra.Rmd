@@ -1,20 +1,25 @@
 
 # Punto extra de Administración de riesgos
 
+
+Configuramos el ambiente de trabajo
 ```{r}
-# cargamos librerías necesarias
+# Cargamos librerías necesarias
+
 library(PerformanceAnalytics)
 library(zoo)
+library(dplyr)
 
 #Cargamos el archivo
 
+data <- read.csv("file1.csv")
 
-data <- read.csv("file.csv")
+#Limpiamos la base
 
-data<- data[,1:2]
-data <- data[!( is.na(data$Mexbol_index)),]
+data<- data[,1:2]   #limpiamos simplemente la base
 
-summary(data)
+data <- data[!( is.na(data$mexbol_index)),]  #quitamos NA
+
 ```
 
 
@@ -25,25 +30,39 @@ summary(data)
 ```{r}
 #agregamos columnas de rendimiento
 
-data$rend <- c(NA, diff(data$Mexbol_index) / data$Mexbol_index[-length(data$Mexbol_index)])
+data$rend <- c(NA, diff(data$mexbol_index) / data$mexbol_index[-length(data$mexbol_index)])
 
-# Eliminamos las filas de dias feriados
+#agregar log URGENTE
+
+# Eliminamos las filas de dias feriados y NA
+
 data <- data[!(data$rend == 0 | is.na(data$rend)),]
 
 
-#agregamos la columna de VaR histórico
+#calculamos VaR histórico
 window_size <- 252
 VaR_historical <- rollapply(data=data$rend,width= window_size, FUN=VaR, p = 0.95, method = "historical", align = "right")
-data$varHist <- c(rep(NA, window_size - 1), -VaR_historical)
 
-#agregamos columna de VaR ponderado histórico
-ponde <- vector()
+#agregamos fechas de predicción
 
-for (i in ){
+data$FechaPred <- c(data$fechas[-1],"30-Jan-2023")
 
-    
-}
+#agregamos columna VaR histórico
 
+data$varHist <- c(rep(NA, window_size -1), VaR_historical)
+
+#Calculamos VaR histórico ponderado 
+
+#crear serie de ponderados
+
+nu <- 0.95
+ponde <- data.frame(dgeom(0:251, 1-nu))/(1-nu^252)
+
+# Calculate VaR
+
+VaR_historical_ponde <- rollapply(data = data$rend, width = window_size, FUN = VaR, p = .95, method = "historical", align = "right", weights = as.numeric(ponde$dgeom.0.251..1...nu.))
+
+data$varHistPonde <- c(rep(NA, window_size -1), VaR_historical_ponde)
 
 ```
 
