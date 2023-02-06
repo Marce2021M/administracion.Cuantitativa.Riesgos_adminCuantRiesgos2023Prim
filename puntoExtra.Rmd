@@ -30,9 +30,8 @@ data <- data[!( is.na(data$mexbol_index)),]  #quitamos NA
 ```{r}
 #agregamos columnas de rendimiento
 
-data$rend <- c(NA, diff(data$mexbol_index) / data$mexbol_index[-length(data$mexbol_index)])
+data$rend <- c(NA, log(data$mexbol_index[-1] / data$mexbol_index[-length(data$mexbol_index)]))
 
-#agregar log URGENTE
 
 # Eliminamos las filas de dias feriados y NA
 
