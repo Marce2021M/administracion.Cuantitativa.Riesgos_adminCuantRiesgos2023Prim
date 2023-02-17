@@ -160,5 +160,34 @@ data$expecShortFallPar <- c(rep(NA, window_size -1), expecShortFallPar)
 # Calculamos Var y expecShortFall paramétrico calculando la VOL
 
 ```{r}
+# calculamos vol
+volatAux <- var(data$rend[1:252])
+varHistVolPar <- rep(1,length(data$rend)-251 )
+esHistVolPar <- rep(1,length(data$rend)-251 )
+
+varHistVolPar <- -sqrt(volatAux)*qnorm(cuantilProb)
+
+esHistVolPar <- sqrt(volatAux)*dnorm(qnorm(cuantilProb))/cuantilProb
+
+for(i in 253:length(data$rend)){
+    volatAux=.94*volatAux+.06*data$rend[i]**2
+    varHistVolPar[i-251] <- -sqrt(volatAux)*qnorm(cuantilProb)
+
+    esHistVolPar[i-251] <- sqrt(volatAux)*dnorm(qnorm(cuantilProb))/cuantilProb
+}
+
+# agrega a la tabla
+
+data$varHistVolPar <- c(rep(NA, window_size -1), varHistVolPar*100)
+
+data$esHistVolPar <- c(rep(NA, window_size -1), esHistVolPar*100)
 
 ```
+
+# Calculamos de la última clase
+
+```{r}
+
+```
+
+
