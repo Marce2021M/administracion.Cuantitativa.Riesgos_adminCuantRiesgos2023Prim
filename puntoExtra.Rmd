@@ -187,39 +187,42 @@ data$esHistVolPar <- c(rep(NA, window_size -1), esHistVolPar*100)
 # Calculamos Var y expecShortFall usando ajuste cornish-fisher
 
 ```{r}
-#función iterativa
-"""volatAux <- var(data$rend[1:252])
+#variables iniciales para el for
+zNormal <- qnorm(cuantilProb)
 
-varFuncCornisFisher <- function(vectorDatos){
-    skewAux <- skewness(vectorDatos)
-    curtAux <- kurtosis(vectorDatos, method = "excess")
-    cuantNormal <- qnorm(cuantilProb)
-    cornisFisher <-
-    volAux <-
-    varAux <-
+volatAux <- var(data$rend[1:252])
+skewAux <- skewness(data$rend[1:252])
+kurtAux <- kurtosis(data$rend[1:252], method = "excess")
 
+# inicializando los vectores
+varCornisFisher <- rep(1,length(data$rend)-251 )
+esCornisFisher <- rep(1,length(data$rend)-251 )
+
+#poniendo el primer valor
+
+cornisFisherAux <- zNormal + (skewAux/6)*(zNormal**2 -1)+(kurtAux/24)*(zNormal**3 -3*zNormal)-((skewAux**2)/36)*(2*(zNormal**3)-5*zNormal)
+#esCornisFisher <- sqrt(volatAux)*dnorm(qnorm(cuantilProb))/cuantilProb
+
+varCornisFisherAux <- -cornisFisherAux*sqrt(volatAux)
+
+for(i in 253:length(data$rend)){
+    volatAux <- var(data$rend[i-251:i])
+    skewAux <- skewness(data$rend[i-251:i])
+    kurtAux <- kurtosis(data$rend[i-251:i], method = "excess")
+
+    cornisFisherAux <- zNormal + (skewAux/6)*(zNormal**2 -1)+(kurtAux/24)*(zNormal**3 -3*zNormal)-((skewAux**2)/36)*(2*(zNormal**3)-5*zNormal)
+#esCornisFisher <- sqrt(volatAux)*dnorm(qnorm(cuantilProb))/cuantilProb
+
+    varCornisFisher[i-251] <--cornisFisherAux*sqrt(volatAux)
 }
-
-varHistCornisFisher <- rollapply(data=data$rend,width= window_size, FUN=varFuncCornisFisher, align = "right")
-
-#agregamos columna VaR histórico paramétrico
-
-data$varHistCornisFisher <- c(rep(NA, window_size -1), -varHistCornisFisher*100)
-
-#creamos funcion de expect 
-
-esFunctPar <- function(vectorDatos){
-    es <- sd(vectorDatos) * dnorm(qnorm(cuantilProb)) / (cuantilProb)
-    return(es*100)
-}
-
-expecShortFallPar <- rollapply(data=data$rend, width=window_size, FUN=esFunctPar, align="right" )
 
 # agrega a la tabla
 
-data$expecShortFallPar <- c(rep(NA, window_size -1), expecShortFallPar)
+data$varCornisFisher <- c(rep(NA, window_size -1), varCornisFisher*100)
 
-"""
+#data$varCornisFisher <- c(rep(NA, window_size -1), esCornisFisher*100)
+
+
 ```
 
 
