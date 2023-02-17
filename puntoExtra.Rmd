@@ -31,11 +31,13 @@ data <- data[!(data$rend == 0 | is.na(data$rend)),]
 
 #agregamos fechas de predicción
 
-data$FechaPred <- c(data$fechas[-1],"30-Jan-2023")
+data$fechaPred <- c(data$fechas[-1],"30-Jan-2023")
 
 # Agregamos window size para la funcion rollapply y poder hacer lo mismo que en excel
 window_size <- 252
 
+# Definimos cuantil a cierta probabilidad
+cuantilProb <- .05
 ```
 
 
@@ -43,11 +45,11 @@ window_size <- 252
 
 ```{r}
 
-VaR_historical <- rollapply(data=data$rend,width= window_size, FUN=VaR, p = 0.95, method = "historical", align = "right")
+varHist <- rollapply(data=data$rend,width= window_size, FUN=VaR, p = 1-cuantilProb, method = "historical", align = "right")
 
 #agregamos columna VaR histórico
 
-data$varHist <- c(rep(NA, window_size -1), -VaR_historical*100)
+data$varHist <- c(rep(NA, window_size -1), -varHist*100)
 
 ```
 
@@ -59,36 +61,104 @@ data$varHist <- c(rep(NA, window_size -1), -VaR_historical*100)
 nu <- 0.97
 ponde <- sort(dgeom(0:251, 1-nu)/(1-nu^252), decreasing = F)
 
+
 #función para calcular ponderado
 
 varFuncPonde <- function(vectorDatos){
-    dataFrameAux <- data.frame(rend=vectorDatos, ponde=ponde)
-    dataFrameAux <- dataFrameAux[order(dataFrameAux$rend, decreasing = F),]
-    dataFrameAux$sumaAcumPonde <- cumsum(dataFrameAux$ponde)
-    dataFrameAux<-dataFrameAux[dataFrameAux$sumaAcumPonde>.05,]
-    varPonderado<-head(dataFrameAux$rend, n=1)
+    dataFrameAux <- data.frame(rend=vectorDatos, ponde=ponde) #relacionando ponderaciones
+    dataFrameAux <- dataFrameAux[order(dataFrameAux$rend, decreasing = F),] #reordenando por rendimiento
+    dataFrameAux$sumaAcumPonde <- cumsum(dataFrameAux$ponde) #prob acumulada
+    dataFrameAux<-dataFrameAux[dataFrameAux$sumaAcumPonde>=cuantilProb,] #filtrando para encontrar el cuantil
+    varPonderado<-head(dataFrameAux$rend, n=1) #sacando el cuantil
+
     return(-varPonderado[1])
 }
 
 # Calculate VaR histórico ponderado
 
-VaR_historical_ponde<- rollapply(data=data$rend,width= window_size, FUN=varFuncPonde, align = "right")
+varHistPonde<- rollapply(data=data$rend,width= window_size, FUN=varFuncPonde, align = "right")
 
 # agrega a la tabla
 
-data$varHistPonde <- c(rep(NA, window_size -1), VaR_historical_ponde*100)
+data$varHistPonde <- c(rep(NA, window_size -1), varHistPonde*100)
 
 #escribe doc
 
-write.csv(data[,c("varHist", "varHistPonde")], file = "my_data.csv")
+write.csv(data[,c("fechaPred","varHist", "varHistPonde")], file = "my_data.csv")
+
+```
+
+
+# Calculamos expected shortfall del historical simulation
+
+```{r}
+esFunct <- function(vectorDatos){
+    varAux <- as.numeric(VaR(vectorDatos, p=1-cuantilProb, method = "historical"))
+    esAux <- -vectorDatos[vectorDatos<= varAux]
+    return(mean(esAux)*100)
+}
+
+expecShortFall <- rollapply(data=data$rend, width=window_size, FUN=esFunct, align="right" )
+
+# agrega a la tabla
+
+data$expecShortFall <- c(rep(NA, window_size -1), expecShortFall)
 
 ```
 
 
 
+# Calculamos expected shortfall del historical simulation ponderado
 
 
+```{r}
+esFunctPonder <- function(vectorDatos){
+    varAux <- varFuncPonde(vectorDatos)
+    esAux <- -vectorDatos[vectorDatos<= -varAux]
+    return(mean(esAux)*100)
+}
+
+expecShortFallPonder <- rollapply(data=data$rend, width=window_size, FUN=esFunctPonder, align="right" )
+
+# agrega a la tabla
+
+data$expecShortFallPonder <- c(rep(NA, window_size -1), expecShortFallPonder)
+```
 
 
+# Calculamos Var y expecShortFall paramétrico
 
 
+```{r}
+#función iterativa
+varFuncPar <- function(vectorDatos){
+    varAux <- -sd(vectorDatos) * qnorm(cuantilProb)
+    return(varAux*100)
+}
+
+varHistPar <- rollapply(data=data$rend,width= window_size, FUN=varFuncPar, align = "right")
+
+#agregamos columna VaR histórico paramétrico
+
+data$varHistPar <- c(rep(NA, window_size -1), -varHistPar*100)
+
+#creamos funcion de expect 
+
+esFunctPar <- function(vectorDatos){
+    es <- sd(vectorDatos) * dnorm(qnorm(cuantilProb)) / (cuantilProb)
+    return(es*100)
+}
+
+expecShortFallPar <- rollapply(data=data$rend, width=window_size, FUN=esFunctPar, align="right" )
+
+# agrega a la tabla
+
+data$expecShortFallPar <- c(rep(NA, window_size -1), expecShortFallPar)
+
+```
+
+# Calculamos Var y expecShortFall paramétrico calculando la VOL
+
+```{r}
+
+```
