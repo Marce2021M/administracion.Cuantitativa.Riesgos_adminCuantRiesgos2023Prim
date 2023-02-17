@@ -184,10 +184,42 @@ data$esHistVolPar <- c(rep(NA, window_size -1), esHistVolPar*100)
 
 ```
 
-# Calculamos de la última clase
+# Calculamos Var y expecShortFall usando ajuste cornish-fisher
 
 ```{r}
+#función iterativa
+"""volatAux <- var(data$rend[1:252])
 
+varFuncCornisFisher <- function(vectorDatos){
+    skewAux <- skewness(vectorDatos)
+    curtAux <- kurtosis(vectorDatos, method = "excess")
+    cuantNormal <- qnorm(cuantilProb)
+    cornisFisher <-
+    volAux <-
+    varAux <-
+
+}
+
+varHistCornisFisher <- rollapply(data=data$rend,width= window_size, FUN=varFuncCornisFisher, align = "right")
+
+#agregamos columna VaR histórico paramétrico
+
+data$varHistCornisFisher <- c(rep(NA, window_size -1), -varHistCornisFisher*100)
+
+#creamos funcion de expect 
+
+esFunctPar <- function(vectorDatos){
+    es <- sd(vectorDatos) * dnorm(qnorm(cuantilProb)) / (cuantilProb)
+    return(es*100)
+}
+
+expecShortFallPar <- rollapply(data=data$rend, width=window_size, FUN=esFunctPar, align="right" )
+
+# agrega a la tabla
+
+data$expecShortFallPar <- c(rep(NA, window_size -1), expecShortFallPar)
+
+"""
 ```
 
 
