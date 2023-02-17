@@ -20,15 +20,7 @@ data<- data[,1:2]   #limpiamos simplemente la base
 
 data <- data[!( is.na(data$mexbol_index)),]  #quitamos NA
 
-```
-
-
-
-
-## Creamos las columnas para el cálculo de VaR
-
-```{r}
-#agregamos columnas de rendimiento
+#agregamos columnas de rendimiento logarítimico
 
 data$rend <- c(NA, log(data$mexbol_index[-1] / data$mexbol_index[-length(data$mexbol_index)]))
 
@@ -37,36 +29,60 @@ data$rend <- c(NA, log(data$mexbol_index[-1] / data$mexbol_index[-length(data$me
 
 data <- data[!(data$rend == 0 | is.na(data$rend)),]
 
-
-#calculamos VaR histórico
-window_size <- 252
-VaR_historical <- rollapply(data=data$rend,width= window_size, FUN=VaR, p = 0.95, method = "historical", align = "right")
-
 #agregamos fechas de predicción
 
 data$FechaPred <- c(data$fechas[-1],"30-Jan-2023")
 
-#agregamos columna VaR histórico
-
-data$varHist <- c(rep(NA, window_size -1), VaR_historical)
-
-#Calculamos VaR histórico ponderado 
-
-#crear serie de ponderados
-
-nu <- 0.95
-ponde <- data.frame(dgeom(0:251, 1-nu))/(1-nu^252)
-
-# Calculate VaR
-
-VaR_historical_ponde <- rollapply(data = data$rend, width = window_size, FUN = VaR, p = .95, method = "historical", align = "right", weights = as.numeric(ponde$dgeom.0.251..1...nu.))
-
-data$varHistPonde <- c(rep(NA, window_size -1), VaR_historical_ponde)
+# Agregamos window size para la funcion rollapply y poder hacer lo mismo que en excel
+window_size <- 252
 
 ```
 
 
+## Creamos las columnas para el cálculo de VaR histórico
 
+```{r}
+
+VaR_historical <- rollapply(data=data$rend,width= window_size, FUN=VaR, p = 0.95, method = "historical", align = "right")
+
+#agregamos columna VaR histórico
+
+data$varHist <- c(rep(NA, window_size -1), -VaR_historical*100)
+
+```
+
+# Calculamos VaR histórico ponderado 
+
+```{r}
+#crear serie de ponderados
+
+nu <- 0.97
+ponde <- sort(dgeom(0:251, 1-nu)/(1-nu^252), decreasing = F)
+
+#función para calcular ponderado
+
+varFuncPonde <- function(vectorDatos){
+    dataFrameAux <- data.frame(rend=vectorDatos, ponde=ponde)
+    dataFrameAux <- dataFrameAux[order(dataFrameAux$rend, decreasing = F),]
+    dataFrameAux$sumaAcumPonde <- cumsum(dataFrameAux$ponde)
+    dataFrameAux<-dataFrameAux[dataFrameAux$sumaAcumPonde>.05,]
+    varPonderado<-head(dataFrameAux$rend, n=1)
+    return(-varPonderado[1])
+}
+
+# Calculate VaR histórico ponderado
+
+VaR_historical_ponde<- rollapply(data=data$rend,width= window_size, FUN=varFuncPonde, align = "right")
+
+# agrega a la tabla
+
+data$varHistPonde <- c(rep(NA, window_size -1), VaR_historical_ponde*100)
+
+#escribe doc
+
+write.csv(data[,c("varHist", "varHistPonde")], file = "my_data.csv")
+
+```
 
 
 
