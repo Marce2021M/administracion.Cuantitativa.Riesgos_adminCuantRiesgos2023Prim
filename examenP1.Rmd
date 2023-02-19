@@ -1,0 +1,91 @@
+
+# Examen
+
+
+## Primera pregunta
+
+```{r}
+# Cargamos librerías necesarias
+
+library(PerformanceAnalytics)
+library(zoo)
+library(dplyr)
+
+#Cargamos el archivo
+
+data <- read.csv("file2.csv")
+
+data <- data[!(data$rend == 0 | is.na(data$rend)),]
+
+# Agregamos window size para la funcion rollapply y poder hacer lo mismo que en excel
+window_size <- 252
+
+# Definimos cuantil a cierta probabilidad
+cuantilProb <- .05
+```
+
+
+
+# segunda poregubta
+
+
+```{r}
+data <- read.csv("file3FEMSA.csv")
+
+
+
+data <- data[!(data$rend == 0 | is.na(data$rend)),]
+
+
+
+# Agregamos window size para la funcion rollapply y poder hacer lo mismo que en excel
+window_size <- 252
+
+# Definimos cuantil a cierta probabilidad
+cuantilProb <- .05
+
+
+valoreExa <- -VaR(data$rend[1:252], p=.95, method = "historical")*100*sqrt(10)
+print(valoreExa)
+
+```
+
+# tercera pregunta
+
+```{r}
+data <- read.csv("fileAme.csv")
+
+data <- rev(data)
+
+data$rend <- log(data$USD[-1] / data$USD[-length(data$USD)])
+
+data <- data[!(data$rend == 0 | is.na(data$rend)),]
+
+
+
+
+# Agregamos window size para la funcion rollapply y poder hacer lo mismo que en excel
+window_size <- 252
+
+# Definimos cuantil a cierta probabilidad
+cuantilProb <- .05
+
+#valoreExa <--quantile(data$rend[a:b], .05)*100*sqrt(10)
+valoreExa <- -VaR(data$rend[1:252], p=.95, method = "historical")*100*sqrt(10)
+print(valoreExa)
+
+```
+
+
+
+#cuarta pregunta
+```{r}
+data <- read.csv("file4FENSA.csv")
+
+data <- data[!(data$rend == 0 | is.na(data$rend)),]
+
+
+```
+
+
+
