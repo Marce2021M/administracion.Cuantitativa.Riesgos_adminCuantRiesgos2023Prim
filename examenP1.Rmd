@@ -13,9 +13,7 @@ library(dplyr)
 
 #Cargamos el archivo
 
-data <- read.csv("file2.csv")
-
-data <- data[!(data$rend == 0 | is.na(data$rend)),]
+data <- read.csv("ejercicio1_1.csv")
 
 # Agregamos window size para la funcion rollapply y poder hacer lo mismo que en excel
 window_size <- 252
@@ -25,67 +23,58 @@ cuantilProb <- .05
 ```
 
 
-
-# segunda poregubta
-
-
 ```{r}
-data <- read.csv("file3FEMSA.csv")
+p <- 0.95
 
+#pregunta 11e
+filtDta <- data$return.aritm[-1]
+varHist <- quantile(filtDta, p, type = 1)
 
+(espShortHist <- -mean(filtDta[filtDta< -varHist])*sqrt(22)*100)
 
-data <- data[!(data$rend == 0 | is.na(data$rend)),]
+#pregunta 11f
 
-
-
-# Agregamos window size para la funcion rollapply y poder hacer lo mismo que en excel
-window_size <- 252
-
-# Definimos cuantil a cierta probabilidad
-cuantilProb <- .05
-
-
-valoreExa <- -VaR(data$rend[1:252], p=.95, method = "historical")*100*sqrt(10)
-print(valoreExa)
-
+(espShortPar <- sd(filtDta)*dnorm(qnorm(1-p))*100*sqrt(22))
 ```
 
-# tercera pregunta
+# problemas 12 en adelante
+```{r}
+data2 <-read.csv("ejercicio12_1.csv")
+```
+
+
 
 ```{r}
-data <- read.csv("fileAme.csv")
+filtDta2 <-data2$returnAritm[(278-251):278]
 
-data <- rev(data)
-
-data$rend <- log(data$USD[-1] / data$USD[-length(data$USD)])
-
-data <- data[!(data$rend == 0 | is.na(data$rend)),]
-
-
-
-
-# Agregamos window size para la funcion rollapply y poder hacer lo mismo que en excel
-window_size <- 252
-
-# Definimos cuantil a cierta probabilidad
-cuantilProb <- .05
-
-#valoreExa <--quantile(data$rend[a:b], .05)*100*sqrt(10)
-valoreExa <- -VaR(data$rend[1:252], p=.95, method = "historical")*100*sqrt(10)
-print(valoreExa)
+(varHist2 <- quantile(filtDta2, p, type = 1)*100*sqrt(10))
 
 ```
 
 
 
-#cuarta pregunta
+# problemas 13 
 ```{r}
-data <- read.csv("file4FENSA.csv")
+data3 <-read.csv("ejercicio13_1.csv")
+```
 
-data <- data[!(data$rend == 0 | is.na(data$rend)),]
+```{r}
+filtDta3 <-data3$returnAritm[(279-251):279]
 
+(varHist3 <- quantile(filtDta3, p, type = 1)*100*sqrt(10))
 
 ```
 
+# problemas 14
+```{r}
+# 2022
+data4 <-read.csv("ejercicio13_2.csv")
+# 2023
+data5 <-read.csv("ejercicio13_3.csv")
+```
+
+```{r}
+varianSemilla <- sd(data4$returnAritm)
 
 
+```
