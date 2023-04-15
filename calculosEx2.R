@@ -1,0 +1,20 @@
+#PREGUNTA 18
+
+(4530/sqrt(20))*qnorm(.975)/qnorm(.95)
+
+
+#PREGUNTA 19
+
+(8500/sqrt(10/3))*qnorm(.99)/qnorm(.975)
+
+#PREGUNTA 24
+
+
+#PREGUNTA 25
+
+40000000*.03*.68
+
+
+#PREGUNTA 26
+
+2500000*.05*.85
