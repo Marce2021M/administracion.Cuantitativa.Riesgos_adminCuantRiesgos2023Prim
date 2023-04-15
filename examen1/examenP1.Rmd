@@ -27,14 +27,14 @@ cuantilProb <- .05
 p <- 0.95
 
 #pregunta 11e
-filtDta <- data$return.aritm[-1]
+filtDta <- data$return
 varHist <- quantile(filtDta, p, type = 1)
 
 (espShortHist <- -mean(filtDta[filtDta< -varHist])*sqrt(22)*100)
 
 #pregunta 11f
 
-(espShortPar <- sd(filtDta)*dnorm(qnorm(1-p))*100*sqrt(22))
+(espShortPar <- sd(filtDta)*dnorm(qnorm(1-p))*100*sqrt(22)/.05)
 ```
 
 # problemas 12 en adelante
