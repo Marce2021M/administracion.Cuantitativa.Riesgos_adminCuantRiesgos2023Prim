@@ -568,3 +568,4 @@ estadistico <- 2*(objective(optimal_variables) - objective2(optimal_variables))
 
 # Parcial 2
 
+# Parcial 3
