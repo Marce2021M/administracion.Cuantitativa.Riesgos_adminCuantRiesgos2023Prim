@@ -1,0 +1,468 @@
+```{r setup, include=FALSE}
+# Cargamos librerías
+
+library(PerformanceAnalytics)
+library(zoo)
+library(dplyr)
+
+library(readxl)
+library(openxlsx)
+library(e1071)
+```
+
+Toda limpieza debe realizarse en el excel
+
+Aquí solo se correrán procesos para agilizar el proceso en excel
+
+ADVERTENCIA: SIEMPRE CHECAR LOS PARÁMETROS DE
+
+-cuantilProb
+-window_size
+-ponderaciones
+-nu
+-m
+-sheet
+
+# Primer parcial
+
+Primero cargamos el archivo de excel
+```{r cargando datos}
+# Set the path to the Excel file and the sheet name
+file_path <- "/Users/marcelinosanchezrodriguez/itamRepositories/adminCuantRiesgos2023Prim/varDatos.xlsx"
+sheet_name <- "Sheet1"
+
+# Read the entire sheet into a data frame
+sheet <- read_excel(file_path, sheet = sheet_name)
+
+# Print the table
+head(sheet)
+summary(sheet)
+
+```
+
+Suponemos que recibiremos una tabla de excel con los precios, rendimientos y fechas sin NAs
+
+## Cálculo Var HISTÓRICO 
+
+Realizamos el cálculo de VaR histórico a lo largo de varios datos con una ventana temporal de 252 días para tener el registro de var a lo largo de la base de datos.
+
+```{r}
+
+# Agregamos window size para la funcion rollapply y poder hacer lo mismo que en excel
+window_size <- 252
+
+# Definimos cuantil a cierta probabilidad
+cuantilProb <- .05
+
+##-------------------------------------------------------------------
+
+## VAR HISTÓRICO sobre una base larga de datos
+
+varHist <- rollapply(data=sheet$returns,width= window_size, FUN=quantile, probs = .05, names= FALSE, align = "right")
+
+#agregamos columna VaR histórico
+
+sheet$varHist <- c(rep(NA, window_size -1), -varHist*100)
+
+# para solo hacerlo una vez se utiliza lo siguiente
+
+#quantile(sheet$returns, probs = cuantilProb)
+
+```
+
+## Cálculo Var PONDERADO
+
+Realizamos el cálculo de VaR ponderado a lo largo de varios datos con una ventana temporal de 252 días para tener el registro de var a lo largo de la base de datos.
+
+```{r}
+
+## VAR HISTÓRICO PONDERADO
+
+#crear serie de ponderados
+
+#en este caso los del profe salen de una geométrica
+nu <- 0.97
+
+m <- window_size # es 252
+ponde <- sort(dgeom(0:(window_size-1), 1-nu)/(1-nu^m), decreasing = F)
+
+
+#función para calcular ponderado
+
+varFuncPonde <- function(vectorDatos){
+    #relacionando ponderaciones
+
+    dataFrameAux <- data.frame(rend=vectorDatos, ponde=ponde) 
+    
+    #reordenando por rendimiento
+    
+    dataFrameAux <- dataFrameAux[order(dataFrameAux$rend, decreasing = F),] 
+    
+    #prob acumulada
+
+    dataFrameAux$sumaAcumPonde <- cumsum(dataFrameAux$ponde) 
+    
+    #filtrando para encontrar el cuantil
+    
+    dataFrameAux<-dataFrameAux[dataFrameAux$sumaAcumPonde>=cuantilProb,] 
+    
+    #sacando el cuantil
+
+    varPonderado<-head(dataFrameAux$rend, n=1) 
+
+    return(-varPonderado[1])
+}
+
+# Calculate VaR histórico ponderado
+
+varHistPonde <- rollapply(data=sheet$returns,width= window_size, FUN=varFuncPonde, align = "right")
+
+# agrega a la tabla
+
+sheet$varHistPonde <- c(rep(NA, window_size -1), varHistPonde*100)
+
+# si solo queremos hacerlo una vez para un vector de datos
+
+#varFuncPonde(sheet$returns)
+
+
+```
+
+
+
+## Calculamos expected shortfall del historical simulation
+
+```{r}
+
+# creamos función para calcular expected shortfall
+esFunct <- function(vectorDatos){
+    varAux <- as.numeric(quantile(vectorDatos, probs=cuantilProb, names=FALSE))
+    esAux <- -vectorDatos[vectorDatos< varAux]
+    return(mean(esAux)*100)
+}
+
+expecShortFall <- rollapply(data=sheet$returns, width=window_size, FUN=esFunct, align="right" )
+
+# agrega a la tabla
+
+data$expecShortFall <- c(rep(NA, window_size -1), expecShortFall)
+
+# si queremos hacerlo una vez para un vector de datos
+
+#esFunct(sheet$returns)
+
+
+```
+
+## Calculamos expected shortfall del historical simulation ponderado
+
+```{r}
+esFunctPonder <- function(vectorDatos){
+    varAux <- varFuncPonde(vectorDatos)
+    esAux <- -vectorDatos[vectorDatos< -varAux]
+    return(mean(esAux)*100)
+}
+
+expecShortFallPonder <- rollapply(data=sheet$returns, width=window_size, FUN=esFunctPonder, align="right" )
+
+# agrega a la tabla
+
+data$expecShortFallPonder <- c(rep(NA, window_size -1), expecShortFallPonder)
+
+# si queremos hacerlo una vez para un vector de datos
+
+#esFunctPonder(sheet$returns)
+
+
+```
+
+## Calculamos Var y expecShortFall paramétrico
+
+
+```{r}
+#función iterativa
+varFuncPar <- function(vectorDatos){
+    varAux <- -sd(vectorDatos) * qnorm(cuantilProb)
+    return(varAux*100)
+}
+
+varHistPar <- rollapply(data=sheet2$returns,width= window_size, FUN=varFuncPar, align = "right")
+
+#agregamos columna VaR histórico paramétrico
+
+data$varHistPar <- c(rep(NA, window_size -1), -varHistPar*100)
+
+# si solo queremos hacerlo una vez para un vector de datos
+
+#varFuncPar(sheet$returns)
+
+
+#creamos funcion de expected shortfall paramétrico 
+
+esFunctPar <- function(vectorDatos){
+    es <- sd(vectorDatos) * dnorm(qnorm(cuantilProb)) / (cuantilProb)
+    return(es*100)
+}
+
+expecShortFallPar <- rollapply(data=sheet$returns, width=window_size, FUN=esFunctPar, align="right" )
+
+# agrega a la tabla
+
+data$expecShortFallPar <- c(rep(NA, window_size -1), expecShortFallPar)
+
+# si queremos hacerlo una vez para un vector de datos
+
+#esFunctPar(sheet$returns)
+
+
+
+```
+
+
+## Calculamos Var y expecShortFall paramétrico calculando la VOL
+
+```{r}
+
+lambda <- 0.94  # ponderación de la volatilidad
+# calculamos vol
+volatAux <- var(sheet$returns[1:252]) # puede ser una que de el profe
+
+varHistVolPar <- rep(1,length(sheet$returns)-251 ) # inicializamos vector de var
+esHistVolPar <- rep(1,length(sheet$returns)-251 ) # inicializamos vector de expected shortfall
+
+#poniendo el primer valor, también puede usarse para solo una vez
+
+varHistVolPar[1] <- -sqrt(volatAux)*qnorm(cuantilProb)
+
+esHistVolPar[1] <- sqrt(volatAux)*dnorm(qnorm(cuantilProb))/cuantilProb
+
+for(i in 253:length(sheet$returns)){
+    volatAux=lambda*volatAux+(1-lambda)*sheet$returns[i]**2
+    varHistVolPar[i-251] <- -sqrt(volatAux)*qnorm(cuantilProb)
+
+    esHistVolPar[i-251] <- sqrt(volatAux)*dnorm(qnorm(cuantilProb))/cuantilProb
+}
+
+# agrega a la tabla
+
+data$varHistVolPar <- c(rep(NA, window_size -1), varHistVolPar*100)
+
+data$esHistVolPar <- c(rep(NA, window_size -1), esHistVolPar*100)
+
+
+```
+
+
+## Calculamos Var y expecShortFall usando ajuste cornish-fisher
+
+FALTA AGREGAR CORNIS FISHER
+```{r}
+lambda <- 0.94  # ponderación de la volatilidad
+#variables iniciales para el for
+zNormal <- qnorm(cuantilProb)
+
+volatAux <- var(sheet$returns[1:252]) # puede ser una que de el profe
+skewAux <- skewness(sheet$returns[1:252], type=2)
+kurtAux <- kurtosis(sheet$returns[1:252], type = 2)
+
+# inicializando los vectores
+varCornisFisher <- rep(1,length(sheet$returns)-251 )
+esCornisFisher <- rep(1,length(sheet$returns)-251 )
+
+#poniendo el primer valor, también puede usarse para solo una vez
+
+cornisFisherAux <- zNormal + (skewAux/6)*(zNormal**2 -1)+(kurtAux/24)*(zNormal**3 -3*zNormal)-((skewAux**2)/36)*(2*(zNormal**3)-5*zNormal)
+#esCornisFisher <- sqrt(volatAux)*dnorm(qnorm(cuantilProb))/cuantilProb
+
+varCornisFisherAux <- -cornisFisherAux*sqrt(volatAux)
+
+for(i in 253:length(sheet$returns)){
+    volatAux=lambda*volatAux+(1-lambda)*sheet$returns[i]**2 #usamos vol paramétrica
+    skewAux <- skewness(sheet$returns[(i-251):i], type = 2)
+    kurtAux <- kurtosis(sheet$returns[(i-251):i], type = 2)
+
+    cornisFisherAux <- zNormal + (skewAux/6)*(zNormal**2 -1)+(kurtAux/24)*(zNormal**3 -3*zNormal)-((skewAux**2)/36)*(2*(zNormal**3)-5*zNormal)
+#esCornisFisher <- sqrt(volatAux)*dnorm(qnorm(cuantilProb))/cuantilProb
+
+    varCornisFisher[i-251] <--cornisFisherAux*sqrt(volatAux)*100
+    #esCornisFisher[i-251] <- 
+}
+
+# agrega a la tabla
+
+data$varCornisFisher <- c(rep(NA, window_size -1), varCornisFisher*100)
+
+#data$varCornisFisher <- c(rep(NA, window_size -1), esCornisFisher*100)
+
+
+```
+
+## VAR calculado por SIMULACIÓN MONTECARLO
+
+Suponemos que recibiremos una tabla de rendimientos de distintas empresas ya filtrada y lista para usarse. Esta tabla tiene rendimientos por fechas.
+
+CUIDADO  si no está bien limpia o con los ajustes necesarios
+
+```{r cargamos datos}
+sheet2 <- read_excel("/Users/marcelinosanchezrodriguez/Documents/Itam/adminDeRiesgos/Clase VAR Portafolio.xlsm", sheet = "pruebas")
+sheet2 <- sheet2[,-1] # quitamos la primera columna que es la fecha
+sheet2 <- sheet2[-nrow(sheet2),] # quitamos la última fila que tiene NA 
+#CHECAR PUREZAS
+```
+
+
+```{r}
+n <- 10 #número de activos
+
+wPortafolio <- rep(1/n,n) # pesos del portafolio
+
+#1.- Calculamos la matriz de volatilidades para cada activo -----------------------------------------------------
+
+lambda <- 0.94  # ponderación de la volatilidad
+volatAuxInic <- rep(.0004,n) # inicializamos vector de volatilidades inicial
+df_volatilidades <- data.frame(matrix(NA, nrow = nrow(sheet2)+1, ncol = ncol(sheet2)))
+
+colnames(df_volatilidades) <- colnames(sheet2)
+
+#inicializando dataframe de volatilidades
+df_volatilidades[1,] <- volatAuxInic
+
+for (i in 2:(nrow(sheet2)+1)) {
+    df_volatilidades[i,] <- lambda * df_volatilidades[i-1,] + (1 - lambda) * (sheet2[i-1,])** 2
+}
+
+#2.Normalizamos los rendimientos de cada activo, suponemos que tienen media cero-------------------------------------
+
+df_rendNormalizados <- mapply("/", sheet2, sqrt(df_volatilidades[-nrow(df_volatilidades),]))
+
+#3.- Calculamos las volatilidades finales para después
+
+volatFinales <- as.vector(as.matrix(sqrt(df_volatilidades[nrow(df_volatilidades),])))
+
+#4.- Calculamos la matriz de correlaciones-------------------------------------------------------------------------
+
+matrizCorrelaciones <- cor(df_rendNormalizados)
+
+#5.-Creamos matriz de cholesky a partir de matriz de correlaciones--------------------------------------------------
+
+matrizCholesky <- chol(matrizCorrelaciones)
+
+# Quitar los nombres de las filas y columnas
+dimnames(matrizCholesky) <- list(NULL, NULL)
+
+#6.- Simulamos los rendimientos de cada activo---------------------------------------------------------------------
+
+set.seed(1234)
+
+nSimulaciones <- 1000 # número de simulaciones
+
+#inicializamos matriz de simulaciones
+
+matrizSimulaciones <- matrix(NA, nrow = nSimulaciones, ncol = n)
+
+# matriz de 2000 números aleatorios de una normal estándar
+
+mat <- matrix(rnorm( 2000 * n ), nrow = 2000, ncol = n) 
+
+#7.-Correlacionamos simulaciones
+
+matSimCorr <- mat %*% matrizCholesky
+
+#8.- Calculamos los rendimientos simulados con la vol final
+
+matrizSimRenCorr <- sweep(matSimCorr, 2, volatFinales, "*")
+
+#9.- Calculamos los rendimientos del portafolio con rendimientos simulados
+
+vectorSimRenPort <- matrizSimRenCorr %*% wPortafolio
+
+#10.- Calculamos el VaR del portafolio
+
+varPort <- -quantile(vectorSimRenPort, 0.05)*100
+
+```
+
+Ahora simularemos varias veces para determinar la centralidad del estimador del VAR por MONTECARLO
+
+```{r}
+
+simulacionesVar <- function(sheet2){
+    #set.seed(1234)
+
+    nSimulaciones <- 1000 # número de simulaciones
+
+    #inicializamos matriz de simulaciones
+
+    matrizSimulaciones <- matrix(NA, nrow = nSimulaciones, ncol = n)
+
+    # matriz de 2000 números aleatorios de una normal estándar
+
+    mat <- matrix(rnorm( 2000 * n ), nrow = 2000, ncol = n) 
+
+    #7.-Correlacionamos simulaciones
+
+    matSimCorr <- mat %*% matrizCholesky
+
+    #8.- Calculamos los rendimientos simulados con la vol final
+
+    matrizSimRenCorr <- sweep(matSimCorr, 2, volatFinales, "*")
+
+    #9.- Calculamos los rendimientos del portafolio con rendimientos simulados
+
+    vectorSimRenPort <- matrizSimRenCorr %*% wPortafolio
+
+    #10.- Calculamos el VaR del portafolio
+
+    varPort <- -quantile(vectorSimRenPort, 0.05)*100
+
+    return(varPort)
+}
+
+simulacionesVar(sheet2)
+
+```
+
+```{r}
+#11.- Calculamos el promedio acumlado de los VAR
+
+mSimulaciones <- 10000
+vectorSimVarPort<- rep(NA, mSimulaciones)
+
+for(i in 1:mSimulaciones){
+    vectorSimVarPort[i] <- -quantile(simulacionesVar(sheet2), 0.05)
+}
+
+vectorSimVarPortCumMean <- cummean(vectorSimVarPort)
+
+plot(vectorSimVarPortCumMean, type = "l", col = "blue", lwd = 2, xlab = "Número de simulación", ylab = "Cumsum VaR Portafolio")
+
+hist(vectorSimVarPort, breaks = 100, col = "blue", xlab = "VaR Portafolio", main = "Histograma de VaR Portafolio")
+quantile(vectorSimVarPort, c(0.05, 0.95))```
+
+```
+
+
+
+## GUARDAMOS
+Ahora procedemos a guardarlo en excel
+
+```{r}
+
+# Load the existing workbook
+wb <- loadWorkbook("/Users/marcelinosanchezrodriguez/itamRepositories/adminCuantRiesgos2023Prim/varDatos.xlsx")
+
+# Add a new sheet to the workbook
+addWorksheet(wb, sheetName = "NewSheet")
+
+# Write data to the new sheet
+data <- data.frame(sheet)
+writeData(wb, sheet = "NewSheet", x = data)
+
+# Save the workbook to a file
+saveWorkbook(wb, "/Users/marcelinosanchezrodriguez/itamRepositories/adminCuantRiesgos2023Prim/varDatos.xlsx", overwrite = TRUE)
+
+```
+
+
+## Cálculo de VOLATILIDADES
+

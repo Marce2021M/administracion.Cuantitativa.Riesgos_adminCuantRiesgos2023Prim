@@ -93,7 +93,7 @@ write.csv(data[,c("fechaPred","varHist", "varHistPonde")], file = "my_data.csv")
 
 ```{r}
 esFunct <- function(vectorDatos){
-    varAux <- as.numeric(VaR(vectorDatos, p=1-cuantilProb, method = "historical"))
+    varAux <- as.numeric(quantile(vectorDatos, probs=cuantilProb, names=FALSE))
     esAux <- -vectorDatos[vectorDatos<= varAux]
     return(mean(esAux)*100)
 }
