@@ -465,4 +465,105 @@ saveWorkbook(wb, "/Users/marcelinosanchezrodriguez/itamRepositories/adminCuantRi
 
 
 ## Cálculo de VOLATILIDADES
+```{r cargamos datos}
+# Set the path to the Excel file and the sheet name
+file_path <- "/Users/marcelinosanchezrodriguez/Documents/Itam/adminDeRiesgos/Clase Riesgos Vol.xlsx"
+sheet_name <- "pruebas"
 
+# Read the entire sheet into a data frame
+sheet3 <- read_excel(file_path, sheet = sheet_name)
+
+# Print the table
+head(sheet3)
+summary(sheet3)
+```
+
+```{r preparamos modelos}
+
+#DATOS se refiere a rendimientos de activos
+#resultado se refiere a volatilidades de activos
+
+sacaLogLikelihood <- function(vector,datos){
+    vectorAux <- rep(NA, length(datos)-1)
+    vectorAux <- -(1/2)*(log(vector[-1])+datos[-1]^2/vector[-1])
+    return(sum(vectorAux))
+}
+
+modeloGarch <- function(semilla=.0004, params, datos){
+    resultado <- rep(semilla, length(datos))
+    #params1 es omega, params2 es alpha, params3 es beta
+
+    for(i in 2:length(datos)){
+        resultado[i] <- params[1] + params[2]*datos[i-1]^2 + params[3]*resultado[i-1]
+    }
+    return(resultado)
+}
+
+modeloLeverage <- function(semilla=.04, params, datos){
+    resultado <- rep(semilla, length(datos))
+    #params1 es omega, params2 es alpha, params3 es beta, params4 es theta
+    for(i in 2:length(datos)){
+        resultado[i] <- params[1] +params[2]*(datos[i-1]-params[4]*sqrt(resultado[i-1]))^2 + params[3]*resultado[i-1]
+    }
+    return(resultado)
+}
+
+
+```
+
+```{r optimizamos}
+library(nloptr)
+
+datos <- sheet3$Rt
+
+n<-4 #número de parametros
+
+# Define the objective function
+objective <- function(params) {
+  resultado <- -sacaLogLikelihood(modeloGarch(semilla=.0004, params, datos), datos)
+
+  return(resultado)
+}
+
+objective2 <- function(params) {
+  resultado <- -sacaLogLikelihood(modeloLeverage(semilla=.0004, params, datos), datos)
+
+  return(resultado)
+}
+constraints <- function(x) {
+  # Example constraint: the sum of variables should be less than or equal to 1
+  return(sum(x) - 1)
+}
+
+# Define the initial guess for the variables
+initial_guess <- c(.000005,0.070000,0.850000,0.500000)  #
+
+# Perform the optimization
+result <- nloptr(x0 = initial_guess,
+                 eval_f = objective2,
+                 lb = rep(0, n),  # Lower bounds for the variables
+                 ub = rep(1, n),  # Upper bounds for the variables
+                 #eval_g_ineq = constraints,
+                 opts=list("algorithm" = "NLOPT_LN_COBYLA"))  # Use GRG Nonlinear method
+
+# Extract the optimized variables and objective value
+optimal_variables <- result$solution
+optimal_objective <- result$objective
+
+# Print the results
+print(optimal_variables)
+print(optimal_objective)
+
+```
+
+
+Y por último comparamos los modelos
+```{r prueba de hipotesis}
+nivel_confianza <- 0.99
+paramsExtra <- 1
+valorCrit <- qchisq(nivel_confianza, df = paramsExtra)
+
+estadistico <- 2*(objective(optimal_variables) - objective2(optimal_variables))
+```
+
+# Parcial 2
