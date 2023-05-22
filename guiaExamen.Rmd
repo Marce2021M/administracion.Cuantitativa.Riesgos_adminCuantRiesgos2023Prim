@@ -650,7 +650,7 @@ tasaiIRS <- sapply(diasAct360, function(dia) {
 
 # Parcial 3
 
-Valuaciones de bonos y duraciones
+## Valuaciones de bonos y duraciones
 
 NOTA: El archivo que se debe cargar es la tabla con los datos de los bonos.
 
@@ -834,3 +834,96 @@ cambioPrecioAjusteYconvex <-cambioPrecioAjusteDuracion + .5*convexidadBono*cambi
 
 ```
 
+## cva y dva 
+
+```{r}
+#inicializando vars
+
+nocional <- 10000000
+
+tipo_de_cambio <- 17.99
+
+tasa_SOFR_USD <- .0480
+
+tasa_TIIEFONDEO_MXN <- .115
+
+plazo_derivado <- 720
+
+pts_fwd <- 11100
+
+forward <- tipo_de_cambio + pts_fwd/10000
+
+volatilidad_tipo_cambio <- .1497
+
+diferencia_de_tiempo <- 90
+
+```
+
+```{r}
+# 1.- Hacemos simulaciones tipo black scholes
+
+dfSimulaciones <- data.frame(matrix(ncol = 9, nrow = 2000))
+
+colnames(dfSimulaciones)<-c(0, 90, 180, 270, 360, 450, 540, 630, 720)
+
+dfSimulaciones[,1] <- rep(tipo_de_cambio, nrow(dfSimulaciones))
+
+for(i in 2:ncol(dfSimulaciones)){
+    dfSimulaciones[,i] <- dfSimulaciones[,(i-1)] * exp((tasa_TIIEFONDEO_MXN - tasa_SOFR_USD + 0.5 * volatilidad_tipo_cambio^2) * diferencia_de_tiempo / 360 + volatilidad_tipo_cambio * sqrt(diferencia_de_tiempo / 360) * qnorm(runif(nrow(dfSimulaciones))))
+}
+
+# 2.- Calculamos el valor del fwd
+
+dfValuacionesSimFwd <- data.frame(matrix(ncol = 9, nrow = 2000))
+
+dfValuacionesSimFwd[,1] <- rep(0, nrow(dfValuacionesSimFwd))
+
+for(i in 2:ncol(dfValuacionesSimFwd)){
+    dfValuacionesSimFwd[,i] <- (dfSimulaciones[,i] * exp((tasa_TIIEFONDEO_MXN - tasa_SOFR_USD) * (720 - as.numeric(colnames(dfSimulaciones)[i])) / 360) - forward) * nocional
+}
+
+# Calculamos percentiles de montos postivos para cada fecha
+
+dfPercentiles <- data.frame(matrix(ncol = 8, nrow = 4))
+
+colnames(dfPercentiles)<-c( 90, 180, 270, 360, 450, 540, 630, 720)
+rownames(dfPercentiles)<-c("posit_.95", "posit_.5", "neg_.05", "neg_.5")
+
+for(i in 1:ncol(dfPercentiles)){
+    dfPercentiles[1,i] <- quantile(dfValuacionesSimFwd[,i+1][dfValuacionesSimFwd[,i+1]>=0], .95)
+    dfPercentiles[2,i] <- quantile(dfValuacionesSimFwd[,i+1][dfValuacionesSimFwd[,i+1]>=0], .5)
+    dfPercentiles[3,i] <- quantile(dfValuacionesSimFwd[,i+1][dfValuacionesSimFwd[,i+1]<=0], .05)
+    dfPercentiles[4,i] <- quantile(dfValuacionesSimFwd[,i+1][dfValuacionesSimFwd[,i+1]<=0], .5)
+}
+
+
+```
+
+```{r}
+dfProbDefault <- data.frame(
+  "Probabilidad de Default/días" = c("A", "B"),
+  "90" = c(0.0970, 0.0296),
+  "180" = c(0.0930, 0.0286),
+  "270" = c(0.1298, 0.0635),
+  "360" = c(0.1543, 0.0875),
+  "450" = c(0.1631, 0.0964),
+  "540" = c(0.1741, 0.1096),
+  "630" = c(0.1937, 0.1284),
+  "720" = c(0.2181, 0.1516)
+) #salen de la tabla de probabilidad de default CALCULADORA
+
+dfRR <- data.frame(
+  "RR" = rep(.25, 8),
+  "LGD" = rep(.75, 8),
+  row.names = c( "90", "180", "270", "360", "450", "540", "630","720")
+)
+
+#calculamos el cva y dva
+
+cva <- sum(dfPercentiles[1,] * dfProbDefault[2,-1] * dfRR[,2])/nocional/tipo_de_cambio
+
+dva <- sum(dfPercentiles[3,] * dfProbDefault[1,-1] * dfRR[,2] )/nocional/tipo_de_cambio
+
+```
+
+De aqui se puede hacer una función para simular 100 valores de estos
