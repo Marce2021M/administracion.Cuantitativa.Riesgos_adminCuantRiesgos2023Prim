@@ -571,7 +571,79 @@ estadistico <- 2*(objective(optimal_variables) - objective2(optimal_variables))
 Creacción de curvas
 
 ```{r}
-# Set the path to the Excel file and the sheet name
+# Set the path to the Excel file and the sheet namE
+
+sheet5SOFR <- read_excel("/Users/marcelinosanchezrodriguez/Documents/Itam/adminDeRiesgos/estudioFinalCheck/Creación de Curvas Licenciatura-4-2.xlsm", sheet = "pruebaSOFR")
+```
+
+```{r funciones importantes}
+
+interpolaitam <- function(matriz, coldatos, pb) {
+  r <- nrow(matriz)
+  temp <- 0
+  
+  for (i in 1:(r - 1)) {
+    if (pb >= matriz[i, 1] && pb <= matriz[i + 1, 1]) {
+      p1 <- matriz[i, 1]
+      p2 <- matriz[i + 1, 1]
+      y1 <- matriz[i, coldatos]
+      y2 <- matriz[i + 1, coldatos]
+      
+      m <- (y2 - y1) / (p2 - p1)
+      
+      temp <- y1 + m * (pb - p1)
+      
+      break
+    }
+  }
+  
+  if (pb < matriz[1, 1]) {
+    temp <- 0
+  } else if (pb > matriz[r, 1]) {
+    temp <- matriz[r, coldatos]
+  }
+  
+  return(as.numeric(temp))
+}
+
+fwd <- function(matriz, coldatos, pc, pl) {
+  tc <- interpolaitam(matriz, coldatos, pc)  # Tasa Corta
+  tl <- interpolaitam(matriz, coldatos, pl)  # Tasa Larga
+  
+  fwd <- ((1 + tl * pl / 360) / (1 + tc * pc / 360) - 1) * 360 / (pl - pc)
+  
+  return(fwd)
+}
+
+
+
+```
+
+## CURVA VALUACIÓN USD COL USD
+```{r}
+library(lubridate)
+
+# construimos columna de dias
+dias30_360 <- c(c(1, 7, 14, 21, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360),seq(720,18000,360))
+)
+
+# construimos columna de dias act 30/360
+
+future_date <- lapply(dias30_360[-(1:4)], function(d) Sys.Date() + months(d/30)) 
+
+diasAct360 <- unlist(c(dias30_360[1:4], lapply(future_date, function(d) as.numeric(d - Sys.Date()))))
+
+# creamos columna de días intermedios
+diasInterm <- diasAct360[-1]-diasAct360[-length(diasAct360)]
+diasInterm <- c(rep(NA,15),diasAct360[16],diasInterm[-(1:15)])
+
+#creamos columna de iIRS
+
+tasaiIRS <- sapply(diasAct360, function(dia) {
+  interpolaitam(sheet5SOFR, 4, dia)
+})
+
+#
 
 ```
 
@@ -579,6 +651,8 @@ Creacción de curvas
 # Parcial 3
 
 Valuaciones de bonos y duraciones
+
+NOTA: El archivo que se debe cargar es la tabla con los datos de los bonos.
 
 ```{r cargamos datos}
 library(lubridate)

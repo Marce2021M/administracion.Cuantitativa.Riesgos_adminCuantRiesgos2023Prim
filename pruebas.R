@@ -55,3 +55,7 @@ result <- sweep(matrix, 2, vector, "*")
 # Print the result
 print(result)
 
+future_date <- Sys.Date() + dias30_360[5]
+months_diff <- as.numeric(format(future_date, "%Y")) * 12 + as.numeric(format(future_date, "%m")) - 
+              (as.numeric(format(Sys.Date(), "%Y")) * 12 + as.numeric(format(Sys.Date(), "%m")))
+
