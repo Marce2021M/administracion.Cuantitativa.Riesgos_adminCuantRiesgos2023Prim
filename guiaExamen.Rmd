@@ -255,7 +255,6 @@ data$esHistVolPar <- c(rep(NA, window_size -1), esHistVolPar*100)
 
 ## Calculamos Var y expecShortFall usando ajuste cornish-fisher
 
-FALTA AGREGAR CORNIS FISHER
 ```{r}
 lambda <- 0.94  # ponderación de la volatilidad
 #variables iniciales para el for
@@ -272,27 +271,28 @@ esCornisFisher <- rep(1,length(sheet$returns)-251 )
 #poniendo el primer valor, también puede usarse para solo una vez
 
 cornisFisherAux <- zNormal + (skewAux/6)*(zNormal**2 -1)+(kurtAux/24)*(zNormal**3 -3*zNormal)-((skewAux**2)/36)*(2*(zNormal**3)-5*zNormal)
-#esCornisFisher <- sqrt(volatAux)*dnorm(qnorm(cuantilProb))/cuantilProb
+
+esCornisFisherAux <- -(dnorm(cornisFisherAux)/cuantilProb)*(1+(skewAux/6)*(cornisFisherAux)^3 + (kurtAux/24)*(cornisFisherAux^4-2*cornisFisherAux^2-1))
 
 varCornisFisherAux <- -cornisFisherAux*sqrt(volatAux)
 
 for(i in 253:length(sheet$returns)){
-    volatAux=lambda*volatAux+(1-lambda)*sheet$returns[i]**2 #usamos vol paramétrica
+    volatAux=lambda*volatAux+(1-lambda)*sheet$returns[i]**2 #usamos vol de JP Morgan
     skewAux <- skewness(sheet$returns[(i-251):i], type = 2)
     kurtAux <- kurtosis(sheet$returns[(i-251):i], type = 2)
 
     cornisFisherAux <- zNormal + (skewAux/6)*(zNormal**2 -1)+(kurtAux/24)*(zNormal**3 -3*zNormal)-((skewAux**2)/36)*(2*(zNormal**3)-5*zNormal)
-#esCornisFisher <- sqrt(volatAux)*dnorm(qnorm(cuantilProb))/cuantilProb
+    esCornisFisherAux <- -(dnorm(cornisFisherAux)/cuantilProb)*(1+(skewAux/6)*(cornisFisherAux)^3 + (kurtAux/24)*(cornisFisherAux^4-2*cornisFisherAux^2-1))
 
     varCornisFisher[i-251] <--cornisFisherAux*sqrt(volatAux)*100
-    #esCornisFisher[i-251] <- 
+    esCornisFisher[i-251] <- esCornisFisherAux*100
 }
 
 # agrega a la tabla
 
-data$varCornisFisher <- c(rep(NA, window_size -1), varCornisFisher*100)
+sheet$varCornisFisher <- c(rep(NA, window_size -1), varCornisFisher*100)
 
-#data$varCornisFisher <- c(rep(NA, window_size -1), esCornisFisher*100)
+sheet$varCornisFisher <- c(rep(NA, window_size -1), esCornisFisher*100)
 
 
 ```
@@ -568,4 +568,195 @@ estadistico <- 2*(objective(optimal_variables) - objective2(optimal_variables))
 
 # Parcial 2
 
+Creacción de curvas
+
+```{r}
+# Set the path to the Excel file and the sheet name
+
+```
+
+
 # Parcial 3
+
+Valuaciones de bonos y duraciones
+
+```{r cargamos datos}
+library(lubridate)
+sheet4 <- read_excel("/Users/marcelinosanchezrodriguez/Documents/Itam/adminDeRiesgos/estudioFinalCheck/Copy of Book2-5.xlsx", sheet = "baseprueba")
+
+
+```
+
+```{r}
+#inicializando variables para valuación para pruebas
+
+(fecha_de_operacion <- Sys.Date())
+
+tPositiva <- 0
+
+(fecha_de_liquidacion <- fecha_de_operacion + tPositiva)
+
+
+serie <- "M 341123" # elegir una serie de sheet4$Ticker
+
+(fecha_de_vencimiento <- as.Date(sheet4[sheet4$Ticker == serie,"Fecha de vencimiento"]$'Fecha de vencimiento'))
+
+(dias_por_vencer <- as.numeric(fecha_de_vencimiento-fecha_de_liquidacion))
+
+dias_cupon <- 182
+
+dias_año <- 360
+
+valor_nominal <- 100
+
+(tasa_cupon <- sheet4[sheet4$Ticker == serie, "TasaCuponVigente"]$'TasaCuponVigente')
+
+yieldTM <- .089
+
+(cupones_a_recibir <- dias_por_vencer/dias_cupon)
+
+(cupones_por_cobrar <- ceiling(cupones_a_recibir))
+
+(dias_deveng_no_cobrados <- (cupones_por_cobrar-cupones_a_recibir)*dias_cupon)
+
+(cupon_monetario <- valor_nominal*tasa_cupon*dias_cupon/dias_año)
+
+(capitalizacion <- dias_año/dias_cupon)
+
+(tasa_efectiva <- yieldTM/capitalizacion)
+
+(factor_de_descuento <- 1/(1+tasa_efectiva))
+```
+
+```{r}
+funcionAsignaVars <- function(sheet4,serie){
+    fecha_de_operacion <- Sys.Date()
+
+    tPositiva <- 0
+
+    fecha_de_liquidacion <- fecha_de_operacion + tPositiva
+
+    serie <- "M 341123" # elegir una serie de sheet4$Ticker
+
+    fecha_de_vencimiento <- as.Date(sheet4[sheet4$Ticker == serie,"Fecha de vencimiento"]$'Fecha de vencimiento')
+
+    dias_por_vencer <- as.numeric(fecha_de_vencimiento-fecha_de_liquidacion)
+
+    dias_cupon <- 182
+
+    dias_año <- 360
+
+    valor_nominal <- 100
+
+    tasa_cupon <- sheet4[sheet4$Ticker == serie, "TasaCuponVigente"]$'TasaCuponVigente'
+
+    yieldTM <- .089
+
+    cupones_a_recibir <- dias_por_vencer/dias_cupon
+
+    cupones_por_cobrar <- ceiling(cupones_a_recibir)
+
+    dias_deveng_no_cobrados <- (cupones_por_cobrar-cupones_a_recibir)*dias_cupon
+
+    cupon_monetario <- valor_nominal*tasa_cupon*dias_cupon/dias_año
+
+    capitalizacion <- dias_año/dias_cupon
+
+    tasa_efectiva <- yieldTM/capitalizacion
+
+    factor_de_descuento <- 1/(1+tasa_efectiva)
+
+}
+
+funcionBono1 <- function(serie, sheet4){
+    funcionAsignaVars(sheet4,serie)
+
+    vectorCupon <- 0:cupones_por_cobrar
+
+    vectorFechaCupon <- rep(fecha_de_vencimiento, length(vectorCupon))
+    for (i in 1:length(vectorCupon)){
+        vectorFechaCupon[length(vectorCupon)-i] <- vectorFechaCupon[length(vectorCupon)-i+1] - dias_cupon
+    }
+
+    vectorDiasPorVencer <- as.numeric(vectorFechaCupon -  fecha_de_liquidacion)
+    vectorDiasPorVencer[1] <- NA
+
+    vectorDiasCupon <- rep( NA, length(vectorCupon))
+    for(i in 2:length(vectorCupon)){
+        vectorDiasCupon[i] <- as.numeric(vectorFechaCupon[i]-vectorFechaCupon[i-1])
+    }
+
+    vectorFlujos <- rep(cupon_monetario, length(vectorCupon))
+    vectorFlujos[1] <- NA
+    vectorFlujos[length(vectorCupon)] <- cupon_monetario + valor_nominal
+
+    vectorFlujosDesc <- rep(factor_de_descuento, length(vectorCupon))
+    for (i in 1:length(vectorCupon)){
+        vectorFlujosDesc[i] <- vectorFlujosDesc[i]^(vectorDiasPorVencer[i]/dias_cupon)
+    }
+
+    vectorValorPresente <- vectorFlujos*vectorFlujosDesc
+
+    valorSucioBono <- sum(vectorFlujos*vectorFlujosDesc, na.rm = TRUE)
+
+    vectorTiempo <- vectorDiasPorVencer/dias_cupon
+
+    intereses_devengados <- cupon_monetario/dias_cupon*dias_deveng_no_cobrados
+
+    valorLimpioBono <- valorSucioBono - intereses_devengados
+
+    duracionMacaulay.m <- sum(vectorValorPresente*vectorTiempo, na.rm = T)/valorSucioBono
+
+    duracionMacaulay.y <- duracionMacaulay.m/(capitalizacion)
+
+    duracionModificada <- duracionMacaulay.y/(1+tasa_efectiva)
+
+    duracion.simple <- ((cupon_monetario/tasa_efectiva^2)*(1-factor_de_descuento^cupones_a_recibir)+((cupones_a_recibir*(valor_nominal-cupon_monetario/tasa_efectiva))*factor_de_descuento^(cupones_a_recibir+1)))/valorSucioBono/capitalizacion
+
+    convexidadBono <- ((2*cupon_monetario/tasa_efectiva^3)*(1-factor_de_descuento^cupones_a_recibir)-(2*cupon_monetario*cupones_a_recibir*factor_de_descuento^(cupones_a_recibir+1)/tasa_efectiva^2)+(cupones_a_recibir*(cupones_a_recibir+1)*(valor_nominal-cupon_monetario/tasa_efectiva))*factor_de_descuento^(cupones_a_recibir+2))/valorSucioBono/(capitalizacion^2)
+
+}
+
+
+funcionBono2 <- function(serie, sheet4){
+    funcionAsignaVars(sheet4,serie)
+
+    valorSucioBono <- (cupon_monetario*(1-factor_de_descuento^cupones_por_cobrar)/tasa_efectiva+valor_nominal*factor_de_descuento^cupones_por_cobrar)*(1+tasa_efectiva)^(dias_deveng_no_cobrados/dias_cupon)
+
+    intereses_devengados <- cupon_monetario/dias_cupon*dias_deveng_no_cobrados
+
+    valorLimpioBono <- valorSucioBono - intereses_devengados
+
+}
+
+calculoDuraciones <- function(serie, sheet4) {
+    cambioPorcentualTasa <- .01
+
+    cambioPrecioAjusteDuracion <- -duracion.simple*cambioPorcentualTasa
+
+    cambioPrecioAjusteYconvex <-cambioPrecioAjusteDuracion + .5*convexidadBono*cambioPorcentualTasa^2
+
+    aprox_precio_duracion <- valorSucioBono*(1+cambioPrecioAjusteDuracion)
+
+    aprox_precio_duracion_convexidad <- valorSucioBono*(1+ cambioPrecioAjusteYconvex)
+
+}
+
+
+```
+
+```{r}
+
+
+cambioPorcentualTasa <- .01
+
+cambioPrecioAjusteDuracion <- -duracion.simple*cambioPorcentualTasa
+
+cambioPrecioAjusteYconvex <-cambioPrecioAjusteDuracion + .5*convexidadBono*cambioPorcentualTasa^2
+
+(aprox_precio_duracion <- valorSucioBono*(1+cambioPrecioAjusteDuracion))
+
+(aprox_precio_duracion_convexidad <- valorSucioBono*(1+ cambioPrecioAjusteYconvex))
+
+```
+
